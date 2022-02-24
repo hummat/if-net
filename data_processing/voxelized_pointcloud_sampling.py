@@ -12,7 +12,8 @@ import traceback
 
 ROOT = 'shapenet/data/'
 
-def voxelized_pointcloud_sampling(path):
+
+def voxelized_pointcloud_sampling(path, partial: bool = False):
     try:
         out_file = path + '/voxelized_point_cloud_{}res_{}points.npz'.format(args.res, args.num_points)
 
@@ -21,10 +22,15 @@ def voxelized_pointcloud_sampling(path):
             return
         off_path = path + '/isosurf_scaled.off'
 
-
         mesh = trimesh.load(off_path)
         point_cloud = mesh.sample(args.num_points)
 
+        if partial:
+            side = np.random.randint(3)
+            xb = [point_cloud[:, side].min(), point_cloud[:, side].max()]
+            length = np.random.uniform(0.7 * (xb[1] - xb[0]), (xb[1] - xb[0]))
+            ind = (point_cloud[:, side] - xb[0]) <= length
+            point_cloud = point_cloud[ind]
 
         occupancies = np.zeros(len(grid_points), dtype=np.int8)
 
@@ -33,12 +39,13 @@ def voxelized_pointcloud_sampling(path):
 
         compressed_occupancies = np.packbits(occupancies)
 
-
-        np.savez(out_file, point_cloud=point_cloud, compressed_occupancies = compressed_occupancies, bb_min = bb_min, bb_max = bb_max, res = args.res)
+        np.savez(out_file, point_cloud=point_cloud, compressed_occupancies=compressed_occupancies, bb_min=bb_min,
+                 bb_max=bb_max, res=args.res)
         print('Finished {}'.format(path))
 
     except Exception as err:
         print('Error with {}: {}'.format(path, traceback.format_exc()))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -50,11 +57,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     bb_min = -0.5
     bb_max = 0.5
-
-
 
     grid_points = iw.create_grid_points_from_bounds(bb_min, bb_max, args.res)
     kdtree = KDTree(grid_points)

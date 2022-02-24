@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 # 1D convolution is used for the decoder. It acts as a standard FC, but allows to use a batch of point samples features,
 # additionally to the batch over the input objects.
 # The dimensions are used as follows:
@@ -23,9 +24,9 @@ class ShapeNet32Vox(nn.Module):
         self.conv_3 = nn.Conv3d(128, 128, 3, padding=1)  # out: 8
         self.conv_3_1 = nn.Conv3d(128, 128, 3, padding=1)  # out: 8
 
-        feature_size = (1 + 64 + 128 + 128 ) * 7
-        self.fc_0 = nn.Conv1d(feature_size, hidden_dim*2, 1)
-        self.fc_1 = nn.Conv1d(hidden_dim*2, hidden_dim, 1)
+        feature_size = (1 + 64 + 128 + 128) * 7
+        self.fc_0 = nn.Conv1d(feature_size, hidden_dim * 2, 1)
+        self.fc_1 = nn.Conv1d(hidden_dim * 2, hidden_dim, 1)
         self.fc_2 = nn.Conv1d(hidden_dim, hidden_dim, 1)
         self.fc_out = nn.Conv1d(hidden_dim, 1, 1)
         self.actvn = nn.ReLU()
@@ -36,24 +37,22 @@ class ShapeNet32Vox(nn.Module):
         self.conv2_1_bn = nn.BatchNorm3d(128)
         self.conv3_1_bn = nn.BatchNorm3d(128)
 
-
-        displacment = 0.035
-        displacments = []
-        displacments.append([0, 0, 0])
+        displacement = 0.035
+        displacements = [[0, 0, 0]]
         for x in range(3):
             for y in [-1, 1]:
                 input = [0, 0, 0]
-                input[x] = y * displacment
-                displacments.append(input)
+                input[x] = y * displacement
+                displacements.append(input)
 
-        self.displacments = torch.Tensor(displacments).cuda()
+        self.displacements = torch.Tensor(displacements).cuda()
 
     def forward(self, p, x):
         x = x.unsqueeze(1)
 
         p_features = p.transpose(1, -1)
         p = p.unsqueeze(1).unsqueeze(1)
-        p = torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
+        p = torch.cat([p + d for d in self.displacements], dim=2)  # (B,1,7,num_samples,3)
         feature_0 = F.grid_sample(x, p)  # out : (B,C (of x), 1,1,sample_num)
 
         net = self.actvn(self.conv_1(x))
@@ -80,7 +79,7 @@ class ShapeNet32Vox(nn.Module):
         shape = features.shape
         features = torch.reshape(features,
                                  (shape[0], shape[1] * shape[3], shape[4]))  # (B, featues_per_sample, samples_num)
-        #features = torch.cat((features, p_features), dim=1)  # (B, featue_size, samples_num)
+        # features = torch.cat((features, p_features), dim=1)  # (B, featue_size, samples_num)
 
         net = self.actvn(self.fc_0(features))
         net = self.actvn(self.fc_1(net))
@@ -89,6 +88,7 @@ class ShapeNet32Vox(nn.Module):
         out = net.squeeze(1)
 
         return out
+
 
 class ShapeNet128Vox(nn.Module):
 
@@ -105,7 +105,7 @@ class ShapeNet128Vox(nn.Module):
         self.conv_3 = nn.Conv3d(128, 128, 3, padding=1)  # out: 8
         self.conv_3_1 = nn.Conv3d(128, 128, 3, padding=1)  # out: 8
 
-        feature_size = (1 +  16 + 32 + 64 + 128 + 128 ) * 7
+        feature_size = (1 + 16 + 32 + 64 + 128 + 128) * 7
         self.fc_0 = nn.Conv1d(feature_size, hidden_dim, 1)
         self.fc_1 = nn.Conv1d(hidden_dim, hidden_dim, 1)
         self.fc_2 = nn.Conv1d(hidden_dim, hidden_dim, 1)
@@ -119,7 +119,6 @@ class ShapeNet128Vox(nn.Module):
         self.conv1_1_bn = nn.BatchNorm3d(64)
         self.conv2_1_bn = nn.BatchNorm3d(128)
         self.conv3_1_bn = nn.BatchNorm3d(128)
-
 
         displacment = 0.0722
         displacments = []
@@ -175,7 +174,7 @@ class ShapeNet128Vox(nn.Module):
         shape = features.shape
         features = torch.reshape(features,
                                  (shape[0], shape[1] * shape[3], shape[4]))  # (B, featues_per_sample, samples_num)
-        #features = torch.cat((features, p_features), dim=1)  # (B, featue_size, samples_num)
+        # features = torch.cat((features, p_features), dim=1)  # (B, featue_size, samples_num)
 
         net = self.actvn(self.fc_0(features))
         net = self.actvn(self.fc_1(net))
@@ -184,8 +183,6 @@ class ShapeNet128Vox(nn.Module):
         out = net.squeeze(1)
 
         return out
-
-
 
 
 # ShapeNet Pointcloud Completion ---------------------------------------------------------------------
@@ -206,7 +203,7 @@ class ShapeNetPoints(nn.Module):
         self.conv_3 = nn.Conv3d(128, 128, 3, padding=1, padding_mode='border')
         self.conv_3_1 = nn.Conv3d(128, 128, 3, padding=1, padding_mode='border')
 
-        feature_size = (1 +  16 + 32 + 64 + 128 + 128 ) * 7
+        feature_size = (1 + 16 + 32 + 64 + 128 + 128) * 7
         self.fc_0 = nn.Conv1d(feature_size, hidden_dim, 1)
         self.fc_1 = nn.Conv1d(hidden_dim, hidden_dim, 1)
         self.fc_2 = nn.Conv1d(hidden_dim, hidden_dim, 1)
@@ -220,7 +217,6 @@ class ShapeNetPoints(nn.Module):
         self.conv1_1_bn = nn.BatchNorm3d(64)
         self.conv2_1_bn = nn.BatchNorm3d(128)
         self.conv3_1_bn = nn.BatchNorm3d(128)
-
 
         displacment = 0.0722
         displacments = []
@@ -276,7 +272,7 @@ class ShapeNetPoints(nn.Module):
         shape = features.shape
         features = torch.reshape(features,
                                  (shape[0], shape[1] * shape[3], shape[4]))  # (B, featues_per_sample, samples_num)
-        #features = torch.cat((features, p_features), dim=1)  # (B, featue_size, samples_num)
+        # features = torch.cat((features, p_features), dim=1)  # (B, featue_size, samples_num)
 
         net = self.actvn(self.fc_0(features))
         net = self.actvn(self.fc_1(net))
@@ -287,13 +283,10 @@ class ShapeNetPoints(nn.Module):
         return out
 
 
-
-
 # 3D Single View Reconsturction (for 256**3 input voxelization) --------------------------------------
 # ----------------------------------------------------------------------------------------------------
 
 class SVR(nn.Module):
-
 
     def __init__(self, hidden_dim=256):
         super(SVR, self).__init__()
@@ -310,10 +303,10 @@ class SVR(nn.Module):
         self.conv_4 = nn.Conv3d(128, 128, 3, padding=1, padding_mode='border')  # out: 8
         self.conv_4_1 = nn.Conv3d(128, 128, 3, padding=1, padding_mode='border')  # out: 8
 
-        feature_size = (1 +  16 + 32 + 64 + 128 + 128 + 128) * 7 + 3
+        feature_size = (1 + 16 + 32 + 64 + 128 + 128 + 128) * 7 + 3
         self.fc_0 = nn.Conv1d(feature_size, hidden_dim * 2, 1)
-        self.fc_1 = nn.Conv1d(hidden_dim *2, hidden_dim, 1)
-        self.fc_2 = nn.Conv1d(hidden_dim , hidden_dim, 1)
+        self.fc_1 = nn.Conv1d(hidden_dim * 2, hidden_dim, 1)
+        self.fc_2 = nn.Conv1d(hidden_dim, hidden_dim, 1)
         self.fc_out = nn.Conv1d(hidden_dim, 1, 1)
         self.actvn = nn.ReLU()
 
@@ -325,7 +318,6 @@ class SVR(nn.Module):
         self.conv2_1_bn = nn.BatchNorm3d(128)
         self.conv3_1_bn = nn.BatchNorm3d(128)
         self.conv4_1_bn = nn.BatchNorm3d(128)
-
 
         displacment = 0.0722
         displacments = []
@@ -349,13 +341,13 @@ class SVR(nn.Module):
         net = self.actvn(self.conv_in(x))
         net = self.conv_in_bn(net)
         feature_1 = F.grid_sample(net, p, padding_mode='border')
-        net = self.maxpool(net) #out 128
+        net = self.maxpool(net)  # out 128
 
         net = self.actvn(self.conv_0(net))
         net = self.actvn(self.conv_0_1(net))
         net = self.conv0_1_bn(net)
         feature_2 = F.grid_sample(net, p, padding_mode='border')
-        net = self.maxpool(net) #out 64
+        net = self.maxpool(net)  # out 64
 
         net = self.actvn(self.conv_1(net))
         net = self.actvn(self.conv_1_1(net))

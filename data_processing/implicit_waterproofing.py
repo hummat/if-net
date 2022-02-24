@@ -52,7 +52,7 @@ def implicit_waterproofing(mesh_source, query_points):
     return occ_list, holes_list
 
 
-# specifically for .binvox format (every cube has same hight,width and depth)
+# specifically for .binvox format (every cube has same height, width and depth)
 def create_grid_points(mesh, res):
     bottom_cotner, upper_corner = mesh.bounds
     minimun = min(bottom_cotner)
@@ -66,6 +66,7 @@ def create_grid_points(mesh, res):
     points_list = np.column_stack((X, Y, Z))
     del X, Y, Z, x
     return points_list
+
 
 def create_grid_points_from_bounds(minimun, maximum, res):
     x = np.linspace(minimun, maximum, res)
@@ -82,5 +83,5 @@ def create_grid_points_from_bounds(minimun, maximum, res):
 # # Converting to occupancy grid
 def to_occ(mesh, res):
     occ, holes = implicit_waterproofing(mesh, create_grid_points(mesh, res))
-    occ = np.reshape(occ,(res,res,res))
+    occ = np.reshape(occ, (res, res, res))
     return occ

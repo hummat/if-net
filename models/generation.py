@@ -6,21 +6,22 @@ import os
 from glob import glob
 import numpy as np
 
+
 class Generator(object):
-    def __init__(self, model, threshold, exp_name, checkpoint = None, device = torch.device("cuda"), resolution = 16, batch_points = 1000000):
+    def __init__(self, model, threshold, exp_name, checkpoint=None, device=torch.device("cuda"), resolution=16,
+                 batch_points=1000000):
         self.model = model.to(device)
         self.model.eval()
         self.threshold = threshold
         self.device = device
         self.resolution = resolution
         self.resolution = resolution
-        self.checkpoint_path = os.path.dirname(__file__) + '/../experiments/{}/checkpoints/'.format( exp_name)
+        self.checkpoint_path = os.path.dirname(__file__) + '/../experiments/{}/checkpoints/'.format(exp_name)
         self.load_checkpoint(checkpoint)
         self.batch_points = batch_points
 
         self.min = -0.5
         self.max = 0.5
-
 
         grid_points = iw.create_grid_points_from_bounds(self.min, self.max, self.resolution)
         grid_points[:, 0], grid_points[:, 2] = grid_points[:, 2], grid_points[:, 0].copy()
@@ -35,37 +36,33 @@ class Generator(object):
         grid_coords = torch.reshape(grid_coords, (1, len(grid_points), 3)).to(self.device)
         self.grid_points_split = torch.split(grid_coords, self.batch_points, dim=1)
 
-
     def generate_mesh(self, data):
 
-
         inputs = data['inputs'].to(self.device)
-
 
         logits_list = []
         for points in self.grid_points_split:
             with torch.no_grad():
-                logits = self.model(points,inputs)
+                logits = self.model(points, inputs)
             logits_list.append(logits.squeeze(0).detach().cpu())
 
         logits = torch.cat(logits_list, dim=0)
 
         return logits.numpy()
-        logits = np.reshape(logits.numpy(), (self.resolution,)*3)
+        logits = np.reshape(logits.numpy(), (self.output_dim,) * 3)
 
-        #padding to be able to retrieve object close to bounding box bondary
+        # padding to be able to retrieve object close to bounding box bondary
         logits = np.pad(logits, ((1, 1), (1, 1), (1, 1)), 'constant', constant_values=0)
         threshold = np.log(self.threshold) - np.log(1. - self.threshold)
-        vertices, triangles = mcubes.marching_cubes(
-            logits, threshold)
+        vertices, triangles = mcubes.marching_cubes(logits, threshold)
 
-        #remove translation due to padding
+        # remove translation due to padding
         vertices -= 1
 
-        #rescale to original scale
-        step = (self.max - self.min) / (self.resolution - 1)
+        # rescale to original scale
+        step = (self._max - self._min) / (self.output_dim - 1)
         vertices = np.multiply(vertices, step)
-        vertices += [self.min, self.min, self.min]
+        vertices += [self._min, self._min, self._min]
 
         mesh = trimesh.Trimesh(vertices, triangles)
         return mesh
@@ -76,8 +73,7 @@ class Generator(object):
         # padding to ba able to retrieve object close to bounding box bondary
         logits = np.pad(logits, ((1, 1), (1, 1), (1, 1)), 'constant', constant_values=0)
         threshold = np.log(self.threshold) - np.log(1. - self.threshold)
-        vertices, triangles = mcubes.marching_cubes(
-            logits, threshold)
+        vertices, triangles = mcubes.marching_cubes(logits, threshold)
 
         # remove translation due to padding
         vertices -= 1
@@ -91,7 +87,7 @@ class Generator(object):
 
     def load_checkpoint(self, checkpoint):
         if checkpoint is None:
-            checkpoints = glob(self.checkpoint_path+'/*')
+            checkpoints = glob(self.checkpoint_path + '/*')
             if len(checkpoints) == 0:
                 print('No checkpoints found at {}'.format(self.checkpoint_path))
 

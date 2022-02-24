@@ -1,5 +1,6 @@
 from __future__ import division
 from torch.utils.data import Dataset
+import data_processing.implicit_waterproofing as iw
 import os
 import numpy as np
 import pickle
@@ -8,18 +9,18 @@ import trimesh
 import torch
 
 
-
 class VoxelizedDataset(Dataset):
 
-
-    def __init__(self, mode, res = 32,  voxelized_pointcloud = False, pointcloud_samples = 3000, data_path = 'shapenet/data/', split_file = 'shapenet/split.npz',
-                 batch_size = 64, num_sample_points = 1024, num_workers = 12, sample_distribution = [1], sample_sigmas = [0.015], **kwargs):
+    def __init__(self, mode, res=32, voxelized_pointcloud=False, pointcloud_samples=3000, data_path='shapenet/data/',
+                 split_file='shapenet/split.npz',
+                 batch_size=64, num_sample_points=1024, num_workers=12, sample_distribution=[1], sample_sigmas=[0.015],
+                 **kwargs):
 
         self.sample_distribution = np.array(sample_distribution)
         self.sample_sigmas = np.array(sample_sigmas)
 
         assert np.sum(self.sample_distribution) == 1
-        assert np.any(self.sample_distribution < 0) == False
+        assert not np.any(self.sample_distribution < 0)
         assert len(self.sample_distribution) == len(self.sample_sigmas)
 
         self.path = data_path
@@ -37,8 +38,6 @@ class VoxelizedDataset(Dataset):
         # compute number of samples per sampling method
         self.num_samples = np.rint(self.sample_distribution * num_sample_points).astype(np.uint32)
 
-
-
     def __len__(self):
         return len(self.data)
 
@@ -48,38 +47,76 @@ class VoxelizedDataset(Dataset):
         if not self.voxelized_pointcloud:
             occupancies = np.load(path + '/voxelization_{}.npy'.format(self.res))
             occupancies = np.unpackbits(occupancies)
-            input = np.reshape(occupancies, (self.res,)*3)
+            input = np.reshape(occupancies, (self.res,) * 3)
         else:
-            voxel_path = path + '/voxelized_point_cloud_{}res_{}points.npz'.format(self.res, self.pointcloud_samples)
-            occupancies = np.unpackbits(np.load(voxel_path)['compressed_occupancies'])
-            input = np.reshape(occupancies, (self.res,)*3)
+            # voxel_path = path + '/voxelized_point_cloud_{}res_{}points.npz'.format(self.res, self.pointcloud_samples)
+            # occupancies = np.unpackbits(np.load(voxel_path)['compressed_occupancies'])
+            # input = np.reshape(occupancies, (self.res,) * 3)
+
+            # My data:
+            surface_data = np.load(os.path.join(path, "surface_grid.npy"))[:50000]
+            indices = np.random.randint(surface_data.shape[0], size=self.pointcloud_samples)
+            points = surface_data[indices, :3]
+
+            # shift points to 0-based:
+            zero_based_points = points + 0.55
+
+            # convert points to [0, 1) fraction of range
+            fractional_points = zero_based_points / 1.1
+
+            # project points into voxel space: [0, k)
+            voxelspace_points = fractional_points * self.res
+
+            # convert voxel space to voxel indices (truncate decimals: 0.1 -> 0)
+            voxel_indices = voxelspace_points.astype(int)
+
+            occupancies = np.zeros((self.res,) * 3, dtype=np.int8)
+            occupancies[voxel_indices] = 1
+            input = occupancies
 
         points = []
         coords = []
         occupancies = []
 
-        for i, num in enumerate(self.num_samples):
-            boundary_samples_path = path + '/boundary_{}_samples.npz'.format(self.sample_sigmas[i])
-            boundary_samples_npz = np.load(boundary_samples_path)
-            boundary_sample_points = boundary_samples_npz['points']
-            boundary_sample_coords = boundary_samples_npz['grid_coords']
-            boundary_sample_occupancies = boundary_samples_npz['occupancies']
-            subsample_indices = np.random.randint(0, len(boundary_sample_points), num)
-            points.extend(boundary_sample_points[subsample_indices])
-            coords.extend(boundary_sample_coords[subsample_indices])
-            occupancies.extend(boundary_sample_occupancies[subsample_indices])
+        # for i, num in enumerate(self.num_samples):
+        #     boundary_samples_path = path + '/boundary_{}_samples.npz'.format(self.sample_sigmas[i])
+        #     boundary_samples_npz = np.load(boundary_samples_path)
+        #     boundary_sample_points = boundary_samples_npz['points']
+        #     boundary_sample_coords = boundary_samples_npz['grid_coords']
+        #     boundary_sample_occupancies = boundary_samples_npz['occupancies']
+        #     subsample_indices = np.random.randint(0, len(boundary_sample_points), num)
+        #     points.extend(boundary_sample_points[subsample_indices])
+        #     coords.extend(boundary_sample_coords[subsample_indices])
+        #     occupancies.extend(boundary_sample_occupancies[subsample_indices])
+
+        # My data:
+        points_data = np.load(os.path.join(path, "uniform_random.npy"))  # Closest to paper: surface_random.npy
+        indices = np.random.randint(points_data.shape[0], size=self.num_sample_points)
+        points = points_data[indices, :3]
+        occupancies = (points_data[indices, 3] <= 0).astype(np.int8)
+
+        points += 0.55
+        points /= 1.1
+        points -= 0.5
+
+        grid_coords = points.copy()
+        grid_coords[:, 0], grid_coords[:, 2] = points[:, 2], points[:, 0]  # Todo: Why? .binvox zyx format?
+        coords = 2 * grid_coords  # Todo: Scales to -1/1, but why?
 
         assert len(points) == self.num_sample_points
         assert len(occupancies) == self.num_sample_points
         assert len(coords) == self.num_sample_points
 
-        return {'grid_coords':np.array(coords, dtype=np.float32),'occupancies': np.array(occupancies, dtype=np.float32),'points':np.array(points, dtype=np.float32), 'inputs': np.array(input, dtype=np.float32), 'path' : path}
+        return {'grid_coords': np.array(coords, dtype=np.float32),
+                'occupancies': np.array(occupancies, dtype=np.float32),
+                'points': np.array(points, dtype=np.float32),
+                'inputs': np.array(input, dtype=np.float32), 'path': path}
 
-    def get_loader(self, shuffle =True):
+    def get_loader(self, shuffle=True):
 
         return torch.utils.data.DataLoader(
-                self, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=shuffle,
-                worker_init_fn=self.worker_init_fn)
+            self, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=shuffle,
+            worker_init_fn=self.worker_init_fn)
 
     def worker_init_fn(self, worker_id):
         random_data = os.urandom(4)

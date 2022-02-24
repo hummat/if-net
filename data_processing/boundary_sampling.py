@@ -1,12 +1,14 @@
-import trimesh
-import numpy as np
-import implicit_waterproofing as iw
+import argparse
 import glob
 import multiprocessing as mp
-from multiprocessing import Pool
-import argparse
 import os
 import traceback
+from multiprocessing import Pool
+
+import numpy as np
+import trimesh
+
+import implicit_waterproofing as iw
 
 ROOT = 'shapenet/data'
 
@@ -14,11 +16,11 @@ ROOT = 'shapenet/data'
 def boundary_sampling(path):
     try:
 
-        if os.path.exists(path +'/boundary_{}_samples.npz'.format(args.sigma)):
+        if os.path.exists(path + '/boundary_{}_samples.npz'.format(args.sigma)):
             return
 
         off_path = path + '/isosurf_scaled.off'
-        out_file = path +'/boundary_{}_samples.npz'.format(args.sigma)
+        out_file = path + '/boundary_{}_samples.npz'.format(args.sigma)
 
         mesh = trimesh.load(off_path)
         points = mesh.sample(sample_num)
@@ -27,11 +29,11 @@ def boundary_sampling(path):
         grid_coords = boundary_points.copy()
         grid_coords[:, 0], grid_coords[:, 2] = boundary_points[:, 2], boundary_points[:, 0]
 
-        grid_coords = 2 * grid_coords
+        grid_coords = 2 * grid_coords  # Scales from -0.5/0.5 to -1/1
 
         occupancies = iw.implicit_waterproofing(mesh, boundary_points)[0]
 
-        np.savez(out_file, points=boundary_points, occupancies = occupancies, grid_coords= grid_coords)
+        np.savez(out_file, points=boundary_points, occupancies=occupancies, grid_coords=grid_coords)
         print('Finished {}'.format(path))
     except:
         print('Error with {}: {}'.format(path, traceback.format_exc()))
@@ -45,9 +47,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     sample_num = 100000
 
-
     p = Pool(mp.cpu_count())
-    p.map(boundary_sampling, glob.glob( ROOT + '/*/*/'))
+    p.map(boundary_sampling, glob.glob(ROOT + '/*/*/'))

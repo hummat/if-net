@@ -1,20 +1,20 @@
-from evaluation import eval_mesh, eval_pointcloud
-import trimesh
-import pickle as pkl
-import os
 import argparse
 import multiprocessing as mp
-from multiprocessing import Pool
-import argparse
-from glob import glob
-import traceback
+import os
+import pickle as pkl
 import random
-from voxels import VoxelGrid
+import traceback
+from glob import glob
+from multiprocessing import Pool
+
 import numpy as np
+import trimesh
+
+from evaluation import eval_mesh, eval_pointcloud
+from voxels import VoxelGrid
 
 
 def eval(path):
-
     if args.reconst:
         eval_file_name = "/eval.pkl"
     elif args.voxels:
@@ -46,10 +46,10 @@ def eval(path):
                 voxels = np.reshape(occ, (args.res,) * 3)
 
                 off_path = path + '/voxelization_{}.off'.format(args.res)
-                input_mesh = VoxelGrid(voxels, [0,0,0], 1).to_mesh()
+                input_mesh = VoxelGrid(voxels, [0, 0, 0], 1).to_mesh()
                 input_mesh.export(off_path)
 
-                gt_mesh_path = data_path + '/{}/{}/isosurf_scaled.off'.format(folder,file_name)
+                gt_mesh_path = data_path + '/{}/{}/isosurf_scaled.off'.format(folder, file_name)
                 gt_mesh = trimesh.load(gt_mesh_path, process=False)
 
                 eval = eval_mesh(input_mesh, gt_mesh, min, max)
@@ -65,15 +65,12 @@ def eval(path):
 
                 eval = eval_pointcloud(input_points, pointcloud_gt)
 
-
-
-            pkl.dump( eval ,open(path + eval_file_name, 'wb'))
+            pkl.dump(eval, open(path + eval_file_name, 'wb'))
             print('Finished {}'.format(path))
 
     except Exception as err:
 
         print('Error with {}: {}'.format(path, traceback.format_exc()))
-
 
 
 if __name__ == '__main__':
@@ -83,13 +80,12 @@ if __name__ == '__main__':
 
     parser.add_argument('-voxels', dest='voxels', action='store_true')
     parser.add_argument('-pc', dest='voxels', action='store_false')
-    parser.add_argument('-res',type=int)
-    parser.add_argument('-points',type=int)
+    parser.add_argument('-res', type=int)
+    parser.add_argument('-points', type=int)
     parser.set_defaults(voxels=True)
     parser.add_argument('-reconst', action='store_true')
     parser.set_defaults(reconst=False)
     parser.add_argument('-generation_path', type=str)
-
 
     args = parser.parse_args()
 
