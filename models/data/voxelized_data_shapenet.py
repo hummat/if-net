@@ -1,12 +1,10 @@
 from __future__ import division
-from torch.utils.data import Dataset
-import data_processing.implicit_waterproofing as iw
+
 import os
+
 import numpy as np
-import pickle
-import imp
-import trimesh
 import torch
+from torch.utils.data import Dataset
 
 
 class VoxelizedDataset(Dataset):
@@ -54,29 +52,29 @@ class VoxelizedDataset(Dataset):
             # input = np.reshape(occupancies, (self.res,) * 3)
 
             # My data:
-            surface_data = np.load(os.path.join(path, "surface_grid.npy"))[:50000]
+            # surface_data = np.load(os.path.join(path, "surface_grid.npy"))[:50000]  # DISN
+            surface_data = np.load(os.path.join(path, "pointcloud.npz"))["points"]  # OccNet
             indices = np.random.randint(surface_data.shape[0], size=self.pointcloud_samples)
             points = surface_data[indices, :3]
 
-            # shift points to 0-based:
-            zero_based_points = points + 0.55
-
-            # convert points to [0, 1) fraction of range
-            fractional_points = zero_based_points / 1.1
+            # Scale to from (-0.55, 0.55) to (0, 1) range
+            points /= 1.1
+            points += 0.5
+            # points[points > 1] = 1.0
+            # points[points < 0] = 0.0
 
             # project points into voxel space: [0, k)
-            voxelspace_points = fractional_points * self.res
-
             # convert voxel space to voxel indices (truncate decimals: 0.1 -> 0)
-            voxel_indices = voxelspace_points.astype(int)
+            voxel_indices = (points * self.res).astype(int)
 
+            # Populate occupancy grid
             occupancies = np.zeros((self.res,) * 3, dtype=np.int8)
             occupancies[voxel_indices] = 1
             input = occupancies
 
-        points = []
-        coords = []
-        occupancies = []
+        # points = []
+        # coords = []
+        # occupancies = []
 
         # for i, num in enumerate(self.num_samples):
         #     boundary_samples_path = path + '/boundary_{}_samples.npz'.format(self.sample_sigmas[i])
@@ -90,18 +88,32 @@ class VoxelizedDataset(Dataset):
         #     occupancies.extend(boundary_sample_occupancies[subsample_indices])
 
         # My data:
-        points_data = np.load(os.path.join(path, "uniform_random.npy"))  # Closest to paper: surface_random.npy
-        indices = np.random.randint(points_data.shape[0], size=self.num_sample_points)
-        points = points_data[indices, :3]
-        occupancies = (points_data[indices, 3] <= 0).astype(np.int8)
+        # DISN
+        # points_data = np.load(os.path.join(path, "uniform_random.npy"))  # Closest to IF-Net: surface_random.npy
+        # indices = np.random.randint(points_data.shape[0], size=self.num_sample_points)
+        # points = points_data[indices, :3]
+        # occupancies = (points_data[indices, 3] <= 0)
 
+        # OccNet
+        points_data = np.load(os.path.join(path, "points.npz"))
+        points = points_data["points"]
+        indices = np.random.randint(points.shape[0], size=self.num_sample_points)
+        points = points[indices]
+        occupancies = np.unpackbits(points_data["occupancies"])[indices]
+
+        if points.dtype == np.float16:
+            points = points.astype(np.float32)
+            points += 1e-4 * np.random.randn(*points.shape)
+
+        # IF-Net trained in (-0.5, 0.5) range (i.e. no padding)
         points += 0.55
         points /= 1.1
         points -= 0.5
 
         grid_coords = points.copy()
-        grid_coords[:, 0], grid_coords[:, 2] = points[:, 2], points[:, 0]  # Todo: Why? .binvox zyx format?
-        coords = 2 * grid_coords  # Todo: Scales to -1/1, but why?
+        # Axes swap needed for grid sampling.
+        grid_coords[:, 0], grid_coords[:, 2] = points[:, 2], points[:, 0]
+        coords = 2 * grid_coords  # Scaling needed for grid sampling
 
         assert len(points) == self.num_sample_points
         assert len(occupancies) == self.num_sample_points
@@ -118,7 +130,8 @@ class VoxelizedDataset(Dataset):
             self, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=shuffle,
             worker_init_fn=self.worker_init_fn)
 
-    def worker_init_fn(self, worker_id):
+    @staticmethod
+    def worker_init_fn(worker_id):
         random_data = os.urandom(4)
         base_seed = int.from_bytes(random_data, byteorder="big")
         np.random.seed(base_seed + worker_id)
