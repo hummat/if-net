@@ -42,10 +42,15 @@ if args.model == 'ShapeNetPoints':
 if args.model == 'SVR':
     net = model.SVR()
 
-dataset = voxelized_data.VoxelizedDataset(args.mode, voxelized_pointcloud=args.pointcloud,
-                                          pointcloud_samples=args.pc_samples, res=args.res,
+dataset = voxelized_data.VoxelizedDataset(args.mode,
+                                          voxelized_pointcloud=args.pointcloud,
+                                          pointcloud_samples=args.pc_samples,
+                                          data_path="/net/rmc-gpu03/home_local/humt_ma/occupancy_networks/core",
+                                          res=args.res,
                                           sample_distribution=args.sample_distribution,
-                                          sample_sigmas=args.sample_sigmas, num_sample_points=100, batch_size=1,
+                                          sample_sigmas=args.sample_sigmas,
+                                          num_sample_points=100,
+                                          batch_size=1,
                                           num_workers=0)
 
 exp_name = 'i{}_dist-{}sigmas-{}v{}_m{}'.format('PC' + str(args.pc_samples) if args.pointcloud else 'Voxels',

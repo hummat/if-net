@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 import torch
+import trimesh
 from torch.utils.data import Dataset
 
 
@@ -58,10 +59,12 @@ class VoxelizedDataset(Dataset):
             points = surface_data[indices, :3]
 
             # Scale to from (-0.55, 0.55) to (0, 1) range
-            points /= 1.1
+            points /= (1 + 0.1 + 10e-4)
             points += 0.5
-            # points[points > 1] = 1.0
-            # points[points < 0] = 0.0
+            if points.max() >= 1:
+                points[points >= 1] = 1 - 10e-4
+            if points.min() < 0:
+                points[points < 0] = 0.0
 
             # project points into voxel space: [0, k)
             # convert voxel space to voxel indices (truncate decimals: 0.1 -> 0)
@@ -106,14 +109,16 @@ class VoxelizedDataset(Dataset):
             points += 1e-4 * np.random.randn(*points.shape)
 
         # IF-Net trained in (-0.5, 0.5) range (i.e. no padding)
-        points += 0.55
-        points /= 1.1
-        points -= 0.5
+        points /= (1 + 0.1 + 10e-4)
+        points += 0.5
+        if points.max() >= 1:
+            points[points >= 1] = 1 - 10e-4
+        if points.min() < 0:
+            points[points < 0] = 0
 
         grid_coords = points.copy()
-        # Axes swap needed for grid sampling.
-        grid_coords[:, 0], grid_coords[:, 2] = points[:, 2], points[:, 0]
-        coords = 2 * grid_coords  # Scaling needed for grid sampling
+        grid_coords[:, 0], grid_coords[:, 2] = points[:, 2], points[:, 0]  # Axes swap needed for grid sampling.
+        coords = 2 * grid_coords - 1  # Scaling needed for grid sampling
 
         assert len(points) == self.num_sample_points
         assert len(occupancies) == self.num_sample_points

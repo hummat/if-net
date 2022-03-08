@@ -17,7 +17,7 @@ parser.add_argument('-pc_samples', default=3000, type=int)
 parser.add_argument('-dist', '--sample_distribution', default=[0.5, 0.5], nargs='+', type=float)
 parser.add_argument('-std_dev', '--sample_sigmas', default=[0.15, 0.015], nargs='+', type=float)
 parser.add_argument('-batch_size', default=32, type=int)
-parser.add_argument('-res', default=32, type=int)
+parser.add_argument('-res', default=128, type=int)
 parser.add_argument('-m', '--model', default='LocNet', type=str)
 parser.add_argument('-o', '--optimizer', default='Adam', type=str)
 
@@ -42,7 +42,8 @@ train_dataset = voxelized_data.VoxelizedDataset('train',
                                                 voxelized_pointcloud=args.pointcloud,
                                                 pointcloud_samples=args.pc_samples,
                                                 # data_path="/home/matthias/Data2/datasets/shapenet/matthias/disn/core",
-                                                data_path="/home/matthias/Data2/datasets/shapenet/occupancy_networks/ShapeNet/core",
+                                                # data_path="/home/matthias/Data2/datasets/shapenet/occupancy_networks/ShapeNet/core",
+                                                data_path="/net/rmc-gpu03/home_local/humt_ma/occupancy_networks/core",
                                                 res=args.res,
                                                 sample_distribution=args.sample_distribution,
                                                 sample_sigmas=args.sample_sigmas,
@@ -54,7 +55,8 @@ val_dataset = voxelized_data.VoxelizedDataset('val',
                                               voxelized_pointcloud=args.pointcloud,
                                               pointcloud_samples=args.pc_samples,
                                               # data_path="/home/matthias/Data2/datasets/shapenet/matthias/disn/core",
-                                              data_path="/home/matthias/Data2/datasets/shapenet/occupancy_networks/ShapeNet/core",
+                                              # data_path="/home/matthias/Data2/datasets/shapenet/occupancy_networks/ShapeNet/core",
+                                              data_path="/net/rmc-gpu03/home_local/humt_ma/occupancy_networks/core",
                                               res=args.res,
                                               sample_distribution=args.sample_distribution,
                                               sample_sigmas=args.sample_sigmas,

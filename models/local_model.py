@@ -53,24 +53,24 @@ class ShapeNet32Vox(nn.Module):
         p_features = p.transpose(1, -1)
         p = p.unsqueeze(1).unsqueeze(1)
         p = torch.cat([p + d for d in self.displacements], dim=2)  # (B,1,7,num_samples,3)
-        feature_0 = F.grid_sample(x, p, align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_0 = F.grid_sample(x, p)  # out : (B,C (of x), 1,1,sample_num)
 
         net = self.actvn(self.conv_1(x))
         net = self.actvn(self.conv_1_1(net))
         net = self.conv1_1_bn(net)
-        feature_1 = F.grid_sample(net, p, align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_1 = F.grid_sample(net, p)  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_2(net))
         net = self.actvn(self.conv_2_1(net))
         net = self.conv2_1_bn(net)
-        feature_2 = F.grid_sample(net, p, align_corners=True)
+        feature_2 = F.grid_sample(net, p)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_3(net))
         net = self.actvn(self.conv_3_1(net))
         net = self.conv3_1_bn(net)
-        feature_3 = F.grid_sample(net, p, align_corners=True)
+        feature_3 = F.grid_sample(net, p)
 
         # here every channel corresponse to one feature.
 
@@ -137,35 +137,35 @@ class ShapeNet128Vox(nn.Module):
         p_features = p.transpose(1, -1)
         p = p.unsqueeze(1).unsqueeze(1)
         p = torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
-        feature_0 = F.grid_sample(x, p, align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_0 = F.grid_sample(x, p)  # out : (B,C (of x), 1,1,sample_num)
 
         net = self.actvn(self.conv_in(x))
         net = self.conv_in_bn(net)
-        feature_1 = F.grid_sample(net, p, align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_1 = F.grid_sample(net, p)  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_0(net))
         net = self.actvn(self.conv_0_1(net))
         net = self.conv0_1_bn(net)
-        feature_2 = F.grid_sample(net, p, align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_2 = F.grid_sample(net, p)  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_1(net))
         net = self.actvn(self.conv_1_1(net))
         net = self.conv1_1_bn(net)
-        feature_3 = F.grid_sample(net, p, align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_3 = F.grid_sample(net, p)  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_2(net))
         net = self.actvn(self.conv_2_1(net))
         net = self.conv2_1_bn(net)
-        feature_4 = F.grid_sample(net, p, align_corners=True)
+        feature_4 = F.grid_sample(net, p)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_3(net))
         net = self.actvn(self.conv_3_1(net))
         net = self.conv3_1_bn(net)
-        feature_5 = F.grid_sample(net, p, align_corners=True)
+        feature_5 = F.grid_sample(net, p)
 
         # here every channel corresponse to one feature.
 
@@ -190,7 +190,7 @@ class ShapeNet128Vox(nn.Module):
 
 class ShapeNetPoints(nn.Module):
 
-    def __init__(self, hidden_dim: int = 256, displacements: bool = False):
+    def __init__(self, hidden_dim: int = 256, displacements: bool = True):
         super(ShapeNetPoints, self).__init__()
         # 128**3 res input
         self.conv_in = nn.Conv3d(1, 16, 3, padding=1, padding_mode='border')
@@ -219,55 +219,54 @@ class ShapeNetPoints(nn.Module):
         self.conv3_1_bn = nn.BatchNorm3d(128)
 
         if displacements:
-            displacment = 0.0722
-            displacments = []
-            displacments.append([0, 0, 0])
+            displacement = 0.0722
+            displacements = []
+            displacements.append([0, 0, 0])
             for x in range(3):
                 for y in [-1, 1]:
                     input = [0, 0, 0]
-                    input[x] = y * displacment
-                    displacments.append(input)
+                    input[x] = y * displacement
+                    displacements.append(input)
 
-            self.displacments = torch.Tensor(displacments).cuda()
+            self.displacements = torch.Tensor(displacements).cuda()
         else:
-            self.displacments = False
+            self.displacements = []
 
     def forward(self, p, x):
         x = x.unsqueeze(1)
 
         # p_features = p.transpose(1, -1)
         p = p.unsqueeze(1).unsqueeze(1)
-        if self.displacments:
-            p = torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
-        feature_0 = F.grid_sample(x, p, padding_mode='border', align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        p = torch.cat([p + d for d in self.displacements], dim=2)  # (B,1,7,num_samples,3)
+        feature_0 = F.grid_sample(x, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
 
         net = self.actvn(self.conv_in(x))
         net = self.conv_in_bn(net)
-        feature_1 = F.grid_sample(net, p, padding_mode='border', align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_1 = F.grid_sample(net, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_0(net))
         net = self.actvn(self.conv_0_1(net))
         net = self.conv0_1_bn(net)
-        feature_2 = F.grid_sample(net, p, padding_mode='border', align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_2 = F.grid_sample(net, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_1(net))
         net = self.actvn(self.conv_1_1(net))
         net = self.conv1_1_bn(net)
-        feature_3 = F.grid_sample(net, p, padding_mode='border', align_corners=True)  # out : (B,C (of x), 1,1,sample_num)
+        feature_3 = F.grid_sample(net, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_2(net))
         net = self.actvn(self.conv_2_1(net))
         net = self.conv2_1_bn(net)
-        feature_4 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_4 = F.grid_sample(net, p, padding_mode='border')
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_3(net))
         net = self.actvn(self.conv_3_1(net))
         net = self.conv3_1_bn(net)
-        feature_5 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_5 = F.grid_sample(net, p, padding_mode='border')
 
         # here every channel corresponds to one feature. (B, features, 1,7,sample_num)
         features = torch.cat((feature_0, feature_1, feature_2, feature_3, feature_4, feature_5), dim=1)
@@ -338,41 +337,41 @@ class SVR(nn.Module):
         p_features = p.transpose(1, -1)
         p = p.unsqueeze(1).unsqueeze(1)
         p = torch.cat([p + d for d in self.displacments], dim=2)
-        feature_0 = F.grid_sample(x, p, padding_mode='border', align_corners=True)
+        feature_0 = F.grid_sample(x, p, padding_mode='border')
 
         net = self.actvn(self.conv_in(x))
         net = self.conv_in_bn(net)
-        feature_1 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_1 = F.grid_sample(net, p, padding_mode='border')
         net = self.maxpool(net)  # out 128
 
         net = self.actvn(self.conv_0(net))
         net = self.actvn(self.conv_0_1(net))
         net = self.conv0_1_bn(net)
-        feature_2 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_2 = F.grid_sample(net, p, padding_mode='border')
         net = self.maxpool(net)  # out 64
 
         net = self.actvn(self.conv_1(net))
         net = self.actvn(self.conv_1_1(net))
         net = self.conv1_1_bn(net)
-        feature_3 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_3 = F.grid_sample(net, p, padding_mode='border')
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_2(net))
         net = self.actvn(self.conv_2_1(net))
         net = self.conv2_1_bn(net)
-        feature_4 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_4 = F.grid_sample(net, p, padding_mode='border')
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_3(net))
         net = self.actvn(self.conv_3_1(net))
         net = self.conv3_1_bn(net)
-        feature_5 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_5 = F.grid_sample(net, p, padding_mode='border')
         net = self.maxpool(net)
 
         net = self.actvn(self.conv_4(net))
         net = self.actvn(self.conv_4_1(net))
         net = self.conv4_1_bn(net)
-        feature_6 = F.grid_sample(net, p, padding_mode='border', align_corners=True)
+        feature_6 = F.grid_sample(net, p, padding_mode='border')
 
         # here every channel corresponse to one feature.
 

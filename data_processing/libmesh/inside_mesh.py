@@ -1,33 +1,33 @@
 import numpy as np
-
 from .triangle_hash import TriangleHash as _TriangleHash
 
 
 def check_mesh_contains(mesh, points, hash_resolution=512):
     intersector = MeshIntersector(mesh, hash_resolution)
-    contains, hole_points = intersector.query(points)
-    return contains, hole_points
+    contains = intersector.query(points)
+    return contains
 
 
 class MeshIntersector:
-    def __init__(self, mesh, resolution=512):
+    def __init__(self, mesh, resolution=512, verbose=True):
         triangles = mesh.vertices[mesh.faces].astype(np.float64)
         n_tri = triangles.shape[0]
 
         self.resolution = resolution
         self.bbox_min = triangles.reshape(3 * n_tri, 3).min(axis=0)
         self.bbox_max = triangles.reshape(3 * n_tri, 3).max(axis=0)
-        # Tranlate and scale it to [0.5, self.output_dim - 0.5]^3
+        # Tranlate and scale it to [0.5, self.resolution - 0.5]^3
         self.scale = (resolution - 1) / (self.bbox_max - self.bbox_min)
         self.translate = 0.5 - self.scale * self.bbox_min
 
         self._triangles = triangles = self.rescale(triangles)
-        # assert(np.allclose(triangles.reshape(-1, 3)._min(0), 0.5))
-        # assert(np.allclose(triangles.reshape(-1, 3)._max(0), output_dim - 0.5))
+        # assert(np.allclose(triangles.reshape(-1, 3).min(0), 0.5))
+        # assert(np.allclose(triangles.reshape(-1, 3).max(0), resolution - 0.5))
 
         triangles2d = triangles[:, :, :2]
         self._tri_intersector2d = TriangleIntersector2d(
             triangles2d, resolution)
+        self.verbose = verbose
 
     def query(self, points):
         # Rescale points
@@ -35,14 +35,13 @@ class MeshIntersector:
 
         # placeholder result with no hits we'll fill in later
         contains = np.zeros(len(points), dtype=np.bool)
-        hole_points = np.zeros(len(points), dtype=np.bool)
 
         # cull points outside of the axis aligned bounding box
         # this avoids running ray tests unless points are close
         inside_aabb = np.all(
             (0 <= points) & (points <= self.resolution), axis=1)
         if not inside_aabb.any():
-            return contains, hole_points
+            return contains
 
         # Only consider points inside bounding box
         mask = inside_aabb
@@ -69,11 +68,10 @@ class MeshIntersector:
         # Check if point contained in mesh
         contains1 = (np.mod(nintersect0, 2) == 1)
         contains2 = (np.mod(nintersect1, 2) == 1)
-        if (contains1 != contains2).any():
+        if (contains1 != contains2).any() and self.verbose:
             print('Warning: contains1 != contains2 for some points.')
         contains[mask] = (contains1 & contains2)
-        hole_points[mask] = np.logical_xor(contains1, contains2)
-        return contains, hole_points
+        return contains
 
     @staticmethod
     def compute_intersection_depth(points, triangles):
