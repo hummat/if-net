@@ -20,9 +20,16 @@ def voxelized_pointcloud_sampling(path, partial: bool = False):
         if os.path.exists(out_file):
             print('File exists. Done.')
             return
-        off_path = path + '/isosurf_scaled.off'
+        off_path = path + '/isosurf.off'
 
-        mesh = trimesh.load(off_path)
+        mesh = trimesh.load(off_path, process=False)
+
+        total_size = (mesh.bounds[1] - mesh.bounds[0]).max()
+        centers = (mesh.bounds[1] + mesh.bounds[0]) / 2
+
+        mesh.apply_translation(-centers)
+        mesh.apply_scale(1 / total_size)
+
         point_cloud = mesh.sample(args.num_points)
 
         if partial:

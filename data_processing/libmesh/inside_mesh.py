@@ -1,15 +1,16 @@
 import numpy as np
+
 from .triangle_hash import TriangleHash as _TriangleHash
 
 
 def check_mesh_contains(mesh, points, hash_resolution=512):
     intersector = MeshIntersector(mesh, hash_resolution)
-    contains = intersector.query(points)
-    return contains
+    contains, hole_points = intersector.query(points)
+    return contains, hole_points
 
 
 class MeshIntersector:
-    def __init__(self, mesh, resolution=512, verbose=True):
+    def __init__(self, mesh, resolution=512):
         triangles = mesh.vertices[mesh.faces].astype(np.float64)
         n_tri = triangles.shape[0]
 
@@ -27,7 +28,6 @@ class MeshIntersector:
         triangles2d = triangles[:, :, :2]
         self._tri_intersector2d = TriangleIntersector2d(
             triangles2d, resolution)
-        self.verbose = verbose
 
     def query(self, points):
         # Rescale points
@@ -35,13 +35,14 @@ class MeshIntersector:
 
         # placeholder result with no hits we'll fill in later
         contains = np.zeros(len(points), dtype=np.bool)
+        hole_points = np.zeros(len(points), dtype=np.bool)
 
         # cull points outside of the axis aligned bounding box
         # this avoids running ray tests unless points are close
         inside_aabb = np.all(
             (0 <= points) & (points <= self.resolution), axis=1)
         if not inside_aabb.any():
-            return contains
+            return contains, hole_points
 
         # Only consider points inside bounding box
         mask = inside_aabb
@@ -68,13 +69,13 @@ class MeshIntersector:
         # Check if point contained in mesh
         contains1 = (np.mod(nintersect0, 2) == 1)
         contains2 = (np.mod(nintersect1, 2) == 1)
-        if (contains1 != contains2).any() and self.verbose:
+        if (contains1 != contains2).any():
             print('Warning: contains1 != contains2 for some points.')
         contains[mask] = (contains1 & contains2)
-        return contains
+        hole_points[mask] = np.logical_xor(contains1, contains2)
+        return contains, hole_points
 
-    @staticmethod
-    def compute_intersection_depth(points, triangles):
+    def compute_intersection_depth(self, points, triangles):
         t1 = triangles[:, 0, :]
         t2 = triangles[:, 1, :]
         t3 = triangles[:, 2, :]
@@ -128,8 +129,7 @@ class TriangleIntersector2d:
         tri_indices = tri_indices[mask]
         return point_indices, tri_indices
 
-    @staticmethod
-    def check_triangles(points, triangles):
+    def check_triangles(self, points, triangles):
         contains = np.zeros(points.shape[0], dtype=np.bool)
         A = triangles[:, :2] - triangles[:, 2:]
         A = A.transpose([0, 2, 1])
